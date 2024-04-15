@@ -39,7 +39,7 @@ func NewAWSClient(region string) (*AWSClient, error) {
 	}, nil
 }
 
-func (ac *AWSClient) GetVpc() ([]*ec2.Vpc, error) {
+func (ac *AWSClient) GetVpcs() ([]*ec2.Vpc, error) {
 	result, err := ac.AWSEC2Client.DescribeVpcs(&ec2.DescribeVpcsInput{})
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (ac *AWSClient) GetVpc() ([]*ec2.Vpc, error) {
 	return result.Vpcs, nil
 }
 
-func (ac *AWSClient) GetInstance() ([]*ec2.Reservation, error) {
+func (ac *AWSClient) GetInstances() ([]*ec2.Reservation, error) {
 	result, err := ac.AWSEC2Client.DescribeInstances(&ec2.DescribeInstancesInput{})
 	if err != nil {
 		return nil, err
@@ -55,7 +55,8 @@ func (ac *AWSClient) GetInstance() ([]*ec2.Reservation, error) {
 	return result.Reservations, nil
 }
 
-func TagVpcInstance(region string) {
+// Tag vpc instances with expiry tag
+func TagVpcInstance(region string, vpcId string) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		klog.Errorf("Error loading AWS config:")
@@ -64,20 +65,23 @@ func TagVpcInstance(region string) {
 	clientResource := resourcegroupstaggingapi.NewFromConfig(cfg)
 
 	// create an arn for vpcs
-	//region := "us-east-2"
-	vpc := "vpc-0cbefbf003d21894b"
-	vpcARN := "arn:aws:ec2:" + region + ":" + "902449478968:vpc/" + vpc
+	// region := "us-east-2"
+	//vpc := "vpc-0cbefbf003d21894b"
+	vpcARN := "arn:aws:ec2:" + region + ":" + "902449478968:vpc/" + vpcId
 
 	fmt.Println(vpcARN)
 
-	value := "testValue"
+	//expireDate := "testValue"
+	// func to create expiry tag
+	expireDate := getExpiryTag()
 
+	// used to tag a vpc
 	input := resourcegroupstaggingapi.TagResourcesInput{
 		ResourceARNList: []string{
 			vpcARN,
 		},
 		Tags: map[string]string{
-			"QEName": value,
+			"expiryTag": expireDate,
 		},
 	}
 
@@ -86,23 +90,58 @@ func TagVpcInstance(region string) {
 		fmt.Printf("Error tagging vpc")
 	}
 	fmt.Println(output)
-
-	//res, _ := ac.GetInstance()
-
-	// loop all instances in us-east-2
-	/*
-		for _, v := range res {
-			//t.Log(v)
-			for _, i := range v.Instances {
-				//t.Log(*i.IamInstanceProfile.Arn)
-				// t.Log(i)
-				// break
-			}
-			//break
-		}
-	*/
 }
 
-func GetVpcArn() {
+func getExpiryTag() string {
+	return ""
+}
 
+// get list of vpcId from list of vpcs in a region
+func (ac *AWSClient) GetVpcArn() (vpcId []string) {
+	vpcs, err := ac.GetVpcs()
+	if err != nil {
+		klog.Errorf("failed getting list of vpc")
+	}
+	// create slice to get the list of VpcIds
+	vpcIdList := []string{}
+	for _, vpc := range vpcs {
+		vpcIdList = append(vpcIdList, *vpc.VpcId)
+		//fmt.Println(*vpc.VpcId)
+		//fmt.Println()
+	}
+	return vpcIdList
+}
+
+// map vpcIds with a creationTime from list of instances
+func (ac *AWSClient) MapVpcIdsWithCreationTime() map[string]string {
+	instanceList, _ := ac.GetInstances()
+	//map creation time value with vpcId key
+	vpcMap := make(map[string]string)
+	vpcIds := ac.GetVpcArn()
+	timeFormat := "2006-01-02 15:04:05.00000"
+	// iterate through list of vpcs on a region
+	for _, vpcID := range vpcIds {
+		// iterate through list of instances on a region (note multiple instances can have the same vpc field)
+		for _, v := range instanceList {
+			// v is a struct and v.instance is also a struct with instance info
+			// iterate through the vpc field for i and add a creationTime value for each vpc and make a map
+			for _, i := range v.Instances {
+				if i.VpcId != nil && *i.VpcId == vpcID {
+					// Check if the VPC ID is already in the map
+					if _, ok := vpcMap[vpcID]; !ok {
+						// Add the VPC ID to the map if not there
+						vpcMap[vpcID] = i.LaunchTime.Format(timeFormat)
+					}
+				}
+			}
+		}
+	}
+
+	for k, v := range vpcMap {
+		fmt.Printf("Key: %s, Value: %s\n", k, v)
+	}
+	//fmt.Println(len(vpcMap))
+	//fmt.Println(len(vpcIds))
+	//fmt.Println(vpcMap)
+	return vpcMap
 }
