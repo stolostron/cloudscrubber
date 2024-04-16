@@ -3,6 +3,7 @@ package clouds
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
@@ -56,7 +57,7 @@ func (ac *AWSClient) GetInstances() ([]*ec2.Reservation, error) {
 }
 
 // Tag vpc instances with expiry tag
-func TagVpcInstance(region string, vpcId string) {
+func TagVpcInstance(region string, vpcId string, creationTime string) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		klog.Errorf("Error loading AWS config:")
@@ -66,14 +67,14 @@ func TagVpcInstance(region string, vpcId string) {
 
 	// create an arn for vpcs
 	// region := "us-east-2"
-	//vpc := "vpc-0cbefbf003d21894b"
+	// vpcId := "vpc-0cbefbf003d21894b"
 	vpcARN := "arn:aws:ec2:" + region + ":" + "902449478968:vpc/" + vpcId
 
 	fmt.Println(vpcARN)
 
 	//expireDate := "testValue"
 	// func to create expiry tag
-	expireDate := getExpiryTag()
+	expireDate := GetExpiryTag(vpcId, creationTime)
 
 	// used to tag a vpc
 	input := resourcegroupstaggingapi.TagResourcesInput{
@@ -92,8 +93,20 @@ func TagVpcInstance(region string, vpcId string) {
 	fmt.Println(output)
 }
 
-func getExpiryTag() string {
-	return ""
+// Takes creationTime and creates expiryTag with 3 days
+func GetExpiryTag(vpcId string, creationTime string) string {
+	date, err := time.Parse("2006-01-02", creationTime)
+	if err != nil {
+		klog.Errorf("failed getting expiryTag from vpc or creationTime")
+	}
+
+	// Add two days to the date
+	newDate := date.Add(3 * 24 * time.Hour)
+
+	// Format the new date as a string
+	newDateString := newDate.Format("2006-01-02")
+
+	return newDateString
 }
 
 // get list of vpcId from list of vpcs in a region
@@ -112,13 +125,41 @@ func (ac *AWSClient) GetVpcArn() (vpcId []string) {
 	return vpcIdList
 }
 
+// Get vpc ids without expiry tag
+func (ac *AWSClient) GetVpcArnWithoutExpiryTag() (vpcId []string) {
+	vpcs, err := ac.GetVpcs()
+	if err != nil {
+		klog.Errorf("failed getting list of vpc")
+	}
+	// create slice to get the list of VpcIds
+	vpcIdList := []string{}
+	tagPresent := false
+	for _, vpc := range vpcs {
+		for _, tag := range vpc.Tags {
+			if *tag.Key == "expiryTag" {
+				tagPresent = true
+			}
+		}
+		// expireTag wasnt there, else it was found and set to false for next vpc
+		if !tagPresent {
+			vpcIdList = append(vpcIdList, *vpc.VpcId)
+		} else {
+			tagPresent = false
+		}
+		//fmt.Println(*vpc.VpcId)
+		//fmt.Println()
+	}
+	return vpcIdList
+}
+
 // map vpcIds with a creationTime from list of instances
 func (ac *AWSClient) MapVpcIdsWithCreationTime() map[string]string {
 	instanceList, _ := ac.GetInstances()
 	//map creation time value with vpcId key
 	vpcMap := make(map[string]string)
-	vpcIds := ac.GetVpcArn()
-	timeFormat := "2006-01-02 15:04:05.00000"
+	//vpcIds := ac.GetVpcArn()
+	vpcIds := ac.GetVpcArnWithoutExpiryTag()
+	timeFormat := "2006-01-02"
 	// iterate through list of vpcs on a region
 	for _, vpcID := range vpcIds {
 		// iterate through list of instances on a region (note multiple instances can have the same vpc field)
