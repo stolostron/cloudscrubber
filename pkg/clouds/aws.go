@@ -3,6 +3,7 @@ package clouds
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,6 +19,17 @@ import (
 type AWSClient struct {
 	AWSEC2Client *ec2.EC2
 	AWSEKSClient *eks.EKS
+}
+
+type taggedVpc struct {
+	vpcId     string
+	expiryTag string
+}
+
+type VpcType struct {
+	Rosa []string
+	Ipi  []string
+	Eks  []string
 }
 
 func NewAWSClient(region string) (*AWSClient, error) {
@@ -152,6 +164,102 @@ func (ac *AWSClient) GetVpcArnWithoutExpiryTag() (vpcId []string) {
 	return vpcIdList
 }
 
+// return a struct with vpcs separated by its type
+func (ac *AWSClient) GetVpcTypesThatAreExpired() VpcType {
+	// clusters := VpcType{}
+	// vpcs, _ := ac.GetVpcs()
+	// expiredVpcs := ac.GetVpcArnWithExpiryTag()
+	// for _, expiredVpc := range expiredVpcs {
+	// 	for _, vpc := range vpcs {
+	// 		if expiredVpc.vpcId == *vpc.VpcId {
+	// 			for _, tag := range vpc.Tags {
+	// 				if strings.Contains(*tag.Key, "red-hat-managed") {
+	// 					clusters.rosa = append(clusters.rosa, getClusterName(vpc.Tags))
+	// 				} else if strings.Contains(*tag.Key, "kubernetes.io/cluster/") {
+	// 					clusters.ipi = append(clusters.ipi, getClusterName(vpc.Tags))
+	// 				} else {
+	// 					clusters.eks = append(clusters.eks, getClusterName(vpc.Tags))
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+	// return clusters
+	clusters := VpcType{}
+	vpcs, _ := ac.GetVpcs()
+	expiredVpcs := ac.GetVpcArnWithExpiryTag()
+
+	// Create a map to track processed VPC IDs
+	processed := make(map[string]bool)
+
+	for _, expiredVpc := range expiredVpcs {
+		// Skip if the VPC ID has already been processed
+		if processed[expiredVpc.vpcId] {
+			continue
+		}
+
+		for _, vpc := range vpcs {
+			if expiredVpc.vpcId == *vpc.VpcId {
+				for _, tag := range vpc.Tags {
+					if strings.Contains(*tag.Key, "red-hat-managed") {
+						clusters.Rosa = append(clusters.Rosa, getClusterName(vpc.Tags))
+						break
+					} else if strings.Contains(*tag.Key, "kubernetes.io/cluster/") {
+						clusters.Ipi = append(clusters.Ipi, getClusterName(vpc.Tags))
+						break
+					} else if strings.Contains(*tag.Key, "alpha.eksctl.io/cluster-name") {
+						clusters.Eks = append(clusters.Eks, getClusterName(vpc.Tags))
+						break
+					}
+				}
+
+				// Mark the VPC ID as processed
+				processed[expiredVpc.vpcId] = true
+
+				// Break out of the inner loop since the VPC has been processed
+				break
+			}
+		}
+	}
+	return clusters
+}
+
+// helper function to get the value from the tag key as cluster name
+func getClusterName(tags []*ec2.Tag) string {
+	var clusterName string
+	for _, tag := range tags {
+		if *tag.Key == "Name" {
+			clusterName = *tag.Value
+		}
+	}
+	return clusterName
+}
+
+// returns a struct with vpcs that have expired tags
+func (ac *AWSClient) GetVpcArnWithExpiryTag() []taggedVpc {
+	vpcs, err := ac.GetVpcs()
+	if err != nil {
+		klog.Errorf("failed getting list of vpc")
+	}
+	expiredVpcs := []taggedVpc{}
+	for _, vpc := range vpcs {
+		for _, tag := range vpc.Tags {
+			if *tag.Key == "expiryTag" && IsExpired(*tag.Value) {
+				//vpcIdList = append(vpcIdList, *vpc.VpcId)
+				expiredVpcs = append(expiredVpcs, taggedVpc{vpcId: *vpc.VpcId, expiryTag: *tag.Value})
+			}
+		}
+	}
+	return expiredVpcs
+}
+
+// check if date is expired from tag
+func IsExpired(tagDate string) bool {
+	currentDate := time.Now().Format("2006-01-02")
+	compareString := tagDate
+	return currentDate > compareString
+}
+
 // map vpcIds with a creationTime from list of instances
 func (ac *AWSClient) MapVpcIdsWithCreationTime() map[string]string {
 	instanceList, _ := ac.GetInstances()
@@ -186,3 +294,5 @@ func (ac *AWSClient) MapVpcIdsWithCreationTime() map[string]string {
 	//fmt.Println(vpcMap)
 	return vpcMap
 }
+
+// Create func to get vpcs without instances / creationTime

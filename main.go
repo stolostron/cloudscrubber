@@ -1,7 +1,7 @@
 package main
 
 import (
-	clouds "cloudmodule/pkg/clouds"
+	"cloudmodule/pkg/clouds"
 	"fmt"
 
 	"k8s.io/klog"
@@ -19,13 +19,12 @@ var (
 func main() {
 	// create aws client for each region
 
-	ac, err := clouds.NewAWSClient("us-east-1")
+	ac, err := clouds.NewAWSClient("us-east-2")
 	if err != nil {
 		klog.Errorf("failed %v\n", err)
 	}
-	vpcMap := ac.MapVpcIdsWithCreationTime()
-	//newTime := clouds.GetExpiryTag("vpc-063bb605484654c0f", vpcMap["vpc-063bb605484654c0f"])
-	//fmt.Println(newTime)
 
-	fmt.Println(len(vpcMap))
+	clusters := ac.GetVpcTypesThatAreExpired()
+	fmt.Println(clusters.Eks)
+	fmt.Println(clusters.Ipi)
 }
