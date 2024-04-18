@@ -166,25 +166,6 @@ func (ac *AWSClient) GetVpcArnWithoutExpiryTag() (vpcId []string) {
 
 // return a struct with vpcs separated by its type
 func (ac *AWSClient) GetVpcTypesThatAreExpired() VpcType {
-	// clusters := VpcType{}
-	// vpcs, _ := ac.GetVpcs()
-	// expiredVpcs := ac.GetVpcArnWithExpiryTag()
-	// for _, expiredVpc := range expiredVpcs {
-	// 	for _, vpc := range vpcs {
-	// 		if expiredVpc.vpcId == *vpc.VpcId {
-	// 			for _, tag := range vpc.Tags {
-	// 				if strings.Contains(*tag.Key, "red-hat-managed") {
-	// 					clusters.rosa = append(clusters.rosa, getClusterName(vpc.Tags))
-	// 				} else if strings.Contains(*tag.Key, "kubernetes.io/cluster/") {
-	// 					clusters.ipi = append(clusters.ipi, getClusterName(vpc.Tags))
-	// 				} else {
-	// 					clusters.eks = append(clusters.eks, getClusterName(vpc.Tags))
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// return clusters
 	clusters := VpcType{}
 	vpcs, _ := ac.GetVpcs()
 	expiredVpcs := ac.GetVpcArnWithExpiryTag()
@@ -201,7 +182,8 @@ func (ac *AWSClient) GetVpcTypesThatAreExpired() VpcType {
 		for _, vpc := range vpcs {
 			if expiredVpc.vpcId == *vpc.VpcId {
 				for _, tag := range vpc.Tags {
-					if strings.Contains(*tag.Key, "red-hat-managed") {
+					// Rosa cluster might not have red-hat-managed tag, need to look at instances for that tag
+					if strings.Contains(*tag.Key, "red-hat-managed") || ac.checkRosa(expiredVpc.vpcId) {
 						clusters.Rosa = append(clusters.Rosa, getClusterName(vpc.Tags))
 						break
 					} else if strings.Contains(*tag.Key, "kubernetes.io/cluster/") {
@@ -233,6 +215,27 @@ func getClusterName(tags []*ec2.Tag) string {
 		}
 	}
 	return clusterName
+}
+
+// helper function to check if a vpc is rosa via instance tag if it doesnt have a vpc tag "red-hat-managed"
+func (ac *AWSClient) checkRosa(expiredVpc string) bool {
+	instances, _ := ac.GetInstances()
+	for _, instance := range instances {
+		for _, fields := range instance.Instances {
+			// if fields.VpcId == nil {
+			// 	continue
+			// }
+			if fields.VpcId != nil && *fields.VpcId == expiredVpc {
+				fmt.Println(*fields.VpcId)
+				for _, tag := range fields.Tags {
+					if *tag.Key == "red-hat-managed" {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // returns a struct with vpcs that have expired tags
