@@ -82,7 +82,7 @@ func TagVpcInstance(region string, vpcId string, creationTime string) {
 	// vpcId := "vpc-0cbefbf003d21894b"
 	vpcARN := "arn:aws:ec2:" + region + ":" + "902449478968:vpc/" + vpcId
 
-	fmt.Println(vpcARN)
+	//fmt.Println(vpcARN)
 
 	//expireDate := "testValue"
 	// func to create expiry tag
@@ -98,21 +98,21 @@ func TagVpcInstance(region string, vpcId string, creationTime string) {
 		},
 	}
 
-	output, err := clientResource.TagResources(context.TODO(), &input)
+	_, err = clientResource.TagResources(context.TODO(), &input)
 	if err != nil {
-		fmt.Printf("Error tagging vpc")
+		klog.Errorf("Error tagging %v/n", vpcId)
 	}
-	fmt.Println(output)
+	//fmt.Println(output)
 }
 
 // Takes creationTime and creates expiryTag with 3 days
-func GetExpiryTag(vpcId string, creationTime string) string {
-	date, err := time.Parse("2006-01-02", creationTime)
+func GetExpiryTag(vpcId string, currentDate string) string {
+	date, err := time.Parse("2006-01-02", currentDate)
 	if err != nil {
 		klog.Errorf("failed getting expiryTag from vpc or creationTime")
 	}
 
-	// Add two days to the date
+	// Add three days to the date
 	newDate := date.Add(3 * 24 * time.Hour)
 
 	// Format the new date as a string
@@ -289,13 +289,11 @@ func (ac *AWSClient) MapVpcIdsWithCreationTime() map[string]string {
 		}
 	}
 
-	for k, v := range vpcMap {
-		fmt.Printf("Key: %s, Value: %s\n", k, v)
-	}
+	// for k, v := range vpcMap {
+	// 	fmt.Printf("Key: %s, Value: %s\n", k, v)
+	// }
 	//fmt.Println(len(vpcMap))
 	//fmt.Println(len(vpcIds))
 	//fmt.Println(vpcMap)
 	return vpcMap
 }
-
-// Create func to get vpcs without instances / creationTime

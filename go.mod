@@ -1,6 +1,6 @@
-module cloudmodule
+module github.com/stolostron/cloudscrubber
 
-go 1.22.0
+go 1.21
 
 require (
 	github.com/aws/aws-sdk-go v1.51.17
