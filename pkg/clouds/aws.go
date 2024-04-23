@@ -52,6 +52,7 @@ func NewAWSClient(region string) (*AWSClient, error) {
 	}, nil
 }
 
+// Get a list of all vpcs in a region
 func (ac *AWSClient) GetVpcs() ([]*ec2.Vpc, error) {
 	result, err := ac.AWSEC2Client.DescribeVpcs(&ec2.DescribeVpcsInput{})
 	if err != nil {
@@ -60,6 +61,7 @@ func (ac *AWSClient) GetVpcs() ([]*ec2.Vpc, error) {
 	return result.Vpcs, nil
 }
 
+// Get a list of all ec2 instances in a region
 func (ac *AWSClient) GetInstances() ([]*ec2.Reservation, error) {
 	result, err := ac.AWSEC2Client.DescribeInstances(&ec2.DescribeInstancesInput{})
 	if err != nil {
@@ -69,7 +71,7 @@ func (ac *AWSClient) GetInstances() ([]*ec2.Reservation, error) {
 }
 
 // Tag vpc instances with expiry tag
-func TagVpcInstance(region string, vpcId string, creationTime string) {
+func TagVpcInstance(region string, vpcId string, currentTime string) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		klog.Errorf("Error loading AWS config:")
@@ -86,7 +88,7 @@ func TagVpcInstance(region string, vpcId string, creationTime string) {
 
 	//expireDate := "testValue"
 	// func to create expiry tag
-	expireDate := GetExpiryTag(vpcId, creationTime)
+	expireDate := GetExpiryTag(vpcId, currentTime)
 
 	// used to tag a vpc
 	input := resourcegroupstaggingapi.TagResourcesInput{
@@ -102,7 +104,7 @@ func TagVpcInstance(region string, vpcId string, creationTime string) {
 	if err != nil {
 		klog.Errorf("Error tagging %v/n", vpcId)
 	}
-	//fmt.Println(output)
+	fmt.Printf("Tagging vpc: %v\n", vpcId)
 }
 
 // Takes creationTime and creates expiryTag with 3 days
@@ -296,4 +298,19 @@ func (ac *AWSClient) MapVpcIdsWithCreationTime() map[string]string {
 	//fmt.Println(len(vpcIds))
 	//fmt.Println(vpcMap)
 	return vpcMap
+}
+
+func GenerateFiles(region string, vpcs VpcType) {
+	fmt.Printf("expired eks clusters in: %v\n", region)
+	for _, eks := range vpcs.Eks {
+		fmt.Println(eks)
+	}
+	fmt.Printf("expired ocp clusters in: %v\n", region)
+	for _, ipi := range vpcs.Ipi {
+		fmt.Println(ipi)
+	}
+	fmt.Printf("expired rosa clusters in: %v\n", region)
+	for _, rosa := range vpcs.Rosa {
+		fmt.Println(rosa)
+	}
 }
