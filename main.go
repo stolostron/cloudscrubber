@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/stolostron/cloudscrubber/pkg/clouds"
@@ -20,7 +21,7 @@ var (
 
 func main() {
 	// Get env variable to determine what task to run
-	cloudTask := os.Getenv("cloudtask")
+	cloudTask := os.Getenv("CLOUD_TASK")
 
 	switch cloudTask {
 	case "awstag":
@@ -52,7 +53,7 @@ func main() {
 			vpcs := ac.GetVpcTypesThatAreExpired()
 			//fmt.Println(vpcs)
 
-			file, err := os.Create(region + "-aws.txt")
+			file, err := os.Create("cloudoutput/" + region + "-aws.txt")
 			if err != nil {
 				fmt.Println("Error creating file:", err)
 				return
@@ -63,6 +64,18 @@ func main() {
 			os.Stdout = file
 			clouds.GenerateFiles(region, vpcs)
 		}
+	case "awsextend":
+		daysExtended := os.Getenv("DAYS")
+		clusterName := os.Getenv("CLUSTER")
+		region := os.Getenv("REGION")
 
+		days, _ := strconv.Atoi(daysExtended)
+
+		ac, err := clouds.NewAWSClient(region)
+		if err != nil {
+			klog.Errorf("failed to create aws client %v\n", err)
+		}
+		ac.ExtendExpiryTag(region, clusterName, days)
 	}
+
 }

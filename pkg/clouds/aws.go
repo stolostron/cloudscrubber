@@ -88,7 +88,7 @@ func TagVpcInstance(region string, vpcId string, currentTime string) {
 
 	//expireDate := "testValue"
 	// func to create expiry tag
-	expireDate := GetExpiryTag(vpcId, currentTime)
+	expireDate := GetExpiryTag(3, currentTime)
 
 	// used to tag a vpc
 	input := resourcegroupstaggingapi.TagResourcesInput{
@@ -108,14 +108,14 @@ func TagVpcInstance(region string, vpcId string, currentTime string) {
 }
 
 // Takes creationTime and creates expiryTag with 3 days
-func GetExpiryTag(vpcId string, currentDate string) string {
+func GetExpiryTag(amount int, currentDate string) string {
 	date, err := time.Parse("2006-01-02", currentDate)
 	if err != nil {
 		klog.Errorf("failed getting expiryTag from vpc or creationTime")
 	}
 
 	// Add three days to the date
-	newDate := date.Add(3 * 24 * time.Hour)
+	newDate := date.Add(time.Duration(amount) * 24 * time.Hour)
 
 	// Format the new date as a string
 	newDateString := newDate.Format("2006-01-02")
@@ -313,4 +313,57 @@ func GenerateFiles(region string, vpcs VpcType) {
 	for _, rosa := range vpcs.Rosa {
 		fmt.Println(rosa)
 	}
+}
+
+// update a vpc tag with new expiry date
+func (ac *AWSClient) ExtendExpiryTag(region string, clusterName string, extendedTime int) {
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+	if err != nil {
+		klog.Errorf("Error loading AWS config:")
+	}
+	clientResource := resourcegroupstaggingapi.NewFromConfig(cfg)
+
+	vpc := ac.ClusterIdToVpcId(clusterName)
+	vpcId := *vpc.VpcId
+
+	newExpiryDate := ""
+	for _, tag := range vpc.Tags {
+		if *tag.Key == "expiryTag" {
+			newExpiryDate = GetExpiryTag(extendedTime, *tag.Value)
+		}
+	}
+	// create an arn for vpcs
+	vpcARN := "arn:aws:ec2:" + region + ":" + "902449478968:vpc/" + vpcId
+
+	// used to tag a vpc
+	if newExpiryDate != "" {
+		input := resourcegroupstaggingapi.TagResourcesInput{
+			ResourceARNList: []string{
+				vpcARN,
+			},
+			Tags: map[string]string{
+				"expiryTag": newExpiryDate,
+			},
+		}
+		_, err = clientResource.TagResources(context.TODO(), &input)
+		if err != nil {
+			klog.Errorf("Error tagging %v/n", vpcId)
+		}
+		fmt.Printf("Update vpc expiryTag date for: %v now expires on %v\n", vpcId, newExpiryDate)
+	}
+}
+
+func (ac *AWSClient) ClusterIdToVpcId(clusterName string) *ec2.Vpc {
+	vpcs, err := ac.GetVpcs()
+	if err != nil {
+		klog.Errorf("failed getting list of vpc")
+	}
+	for _, vpc := range vpcs {
+		for _, tag := range vpc.Tags {
+			if *tag.Key == "Name" && *tag.Value == clusterName {
+				return vpc
+			}
+		}
+	}
+	return nil
 }

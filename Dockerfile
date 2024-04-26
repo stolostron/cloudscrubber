@@ -10,8 +10,8 @@ COPY . .
 # build the go application
 RUN go build -o cloud .
 
-# set environment variable
-ENV cloudtask="awstag"
+# set cloud task environment variable
+# ENV CLOUD_TASK="awsextend"
 
 # run the executable
 CMD ["./cloud"]
