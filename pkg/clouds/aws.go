@@ -107,12 +107,9 @@ func TagVpcInstance(region string, vpcId string, currentTime string) {
 	fmt.Printf("Tagging vpc: %v\n", vpcId)
 }
 
-// Takes creationTime and creates expiryTag with 3 days
+// Takes current time and creates expiryTag with 3 days
 func GetExpiryTag(amount int, currentDate string) string {
-	date, err := time.Parse("2006-01-02", currentDate)
-	if err != nil {
-		klog.Errorf("failed getting expiryTag from vpc or creationTime")
-	}
+	date, _ := time.Parse("2006-01-02", currentDate)
 
 	// Add three days to the date
 	newDate := date.Add(time.Duration(amount) * 24 * time.Hour)

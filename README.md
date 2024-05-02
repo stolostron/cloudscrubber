@@ -8,7 +8,7 @@ Cloudscrubber is a tool used to track cloud resource usage. This tool runs again
 
 - Tag AWS vpcs for managed clusters (ROSA/OSD etc), installer provisioned installations (IPI), Kubernetes clusters (EKS)
 - Announce AWS vpcs and generate files per region with expired vpcs
-- Extend AWS expiryTags for clusters still in use (in development)
+- Extend AWS expiryTags for clusters still in use
 
 ###
 - GCP (Future Feature)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,11 +12,12 @@ import (
 )
 
 var (
+	ctx       = context.Background()
 	awsRegion = []string{
-		// "us-east-1",
-		// "us-east-2",
+		"us-east-1",
+		"us-east-2",
 		"us-west-1",
-		// "us-west-2",
+		"us-west-2",
 	}
 )
 
@@ -76,6 +78,32 @@ func main() {
 			klog.Errorf("failed to create aws client %v\n", err)
 		}
 		ac.ExtendExpiryTag(region, clusterName, days)
-	}
+	case "gcptag":
 
+	}
+	run()
+}
+
+// export GCLOUD_CREDS_FILE_PATH=~/Desktop/Cloud/osServiceAccount.json
+func run() {
+	gc, err := clouds.NewGoogleCloudClient(ctx)
+	if err != nil {
+		klog.Errorf("failed to create the cloud client due to: %v\n", err)
+	}
+	//fmt.Println(gc.ListZone())
+
+	// zones, _ := gc.ListZone()
+
+	// for _, zone := range zones {
+	// 	//fmt.Println(gc.ListInstances(zone))
+	// 	instances, _ := gc.ListInstances(zone)
+	// 	for _, instance := range instances.Items {
+	// 		fmt.Println(instance.Name)
+	// 	}
+	// }
+
+	instances, _ := gc.ListInstances("us-east1-b")
+	project := gc.CloudConfig.ProjectID
+	fmt.Println(instances.Items[0].Name)
+	gc.LabelInstance(project, "us-east1-b", instances.Items[0])
 }
