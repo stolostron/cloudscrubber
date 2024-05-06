@@ -79,7 +79,21 @@ func main() {
 		}
 		ac.ExtendExpiryTag(region, clusterName, days)
 	case "gcptag":
-
+		gc, err := clouds.NewGoogleCloudClient(ctx)
+		if err != nil {
+			klog.Errorf("failed to create the cloud client due to: %v\n", err)
+		}
+		zones, err := gc.ListZone()
+		if err != nil {
+			klog.Errorf("failed to get zones due to: %v\n", err)
+		}
+		project := gc.CloudConfig.ProjectID
+		for _, zone := range zones {
+			instances, _ := gc.ListInstances(zone)
+			for _, instance := range instances.Items {
+				gc.LabelInstance(project, zone, instance)
+			}
+		}
 	}
 	run()
 }
@@ -102,8 +116,9 @@ func run() {
 	// 	}
 	// }
 
-	instances, _ := gc.ListInstances("us-east1-b")
+	//instances, _ := gc.ListInstances("us-east1-b")
 	project := gc.CloudConfig.ProjectID
-	fmt.Println(instances.Items[0].Name)
-	gc.LabelInstance(project, "us-east1-b", instances.Items[0])
+	//fmt.Println(instances.Items[0].Name, project)
+	instance, _ := gc.ComputeService.Instances.Get(project, "us-east1-b", "clc-gcp-1714765954539-dhnfc-master-0").Do()
+	gc.LabelInstance(project, "us-east1-b", instance)
 }
