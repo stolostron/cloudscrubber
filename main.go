@@ -117,14 +117,18 @@ func main() {
 				fmt.Println(v.ClusterNameByLabel, zone[:len(zone)-2])
 			}
 		}
+	case "gcpextend":
+
 	}
-	//run()
+	run()
 }
 
 // export GCLOUD_CREDS_FILE_PATH=~/Desktop/Cloud/osServiceAccount.json
-// func run() {
-// 	gc, err := clouds.NewGoogleCloudClient(ctx)
-// 	if err != nil {
-// 		klog.Errorf("failed to create the cloud client due to: %v\n", err)
-// 	}
-// }
+func run() {
+	gc, err := clouds.NewGoogleCloudClient(ctx)
+	if err != nil {
+		klog.Errorf("failed to create the cloud client due to: %v\n", err)
+	}
+	clusters := gc.GetClusterListByLabel()
+	fmt.Println(clusters)
+}

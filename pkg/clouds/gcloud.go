@@ -182,6 +182,9 @@ func getClusterNameFromLabels(label map[string]string) string {
 			name := strings.TrimPrefix(k, labelPrefix)
 			return name
 		}
+		if k == gkeLabel {
+			return v
+		}
 	}
 	return ""
 }
