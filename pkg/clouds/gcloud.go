@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2/google"
@@ -23,6 +24,12 @@ type GCloudClient struct {
 	InstanceGroupService *compute.InstanceGroupsService
 	InstanceService      *compute.InstancesService
 	CloudConfig          *google.Credentials
+}
+
+type Clusters struct {
+	ClusterNameByLabel string
+	Instances          []*compute.Instance
+	ExpireDate         string
 }
 
 // returns a google cloud client using a service account json
@@ -100,8 +107,6 @@ func (gc *GCloudClient) ListInstances(zone string) (*compute.InstanceList, error
 func (gc *GCloudClient) LabelInstance(project string, zone string, instance *compute.Instance) {
 	ctx := context.Background()
 
-	currentTime := time.Now().UTC().Format("2006-01-02")
-	expireDate := GetExpiryTag(3, currentTime)
 	//fmt.Println(expireDate)
 
 	// get current labels and current fingerprint of the instance
@@ -113,8 +118,12 @@ func (gc *GCloudClient) LabelInstance(project string, zone string, instance *com
 	for k, v := range currentLabels {
 		mergedLabels[k] = v
 	}
-	// add the expiry tag label
-	mergedLabels["expirytag"] = expireDate
+	// check if instance has an expiryTag using an if statement
+	if _, ok := mergedLabels["expirytag"]; !ok {
+		currentTime := time.Now().UTC().Format("2006-01-02")
+		expireDate := GetExpiryTag(3, currentTime)
+		mergedLabels["expirytag"] = expireDate
+	}
 
 	// create the request
 	request := gc.ComputeService.Instances.SetLabels(project, zone, instance.Name, &compute.InstancesSetLabelsRequest{
@@ -132,4 +141,69 @@ func (gc *GCloudClient) LabelInstance(project string, zone string, instance *com
 	}
 
 	//fmt.Println("Labels added successfully!")
+}
+
+// Return a map with cluster name and the instances associated with it as values
+// in gcp, only instances can have labels so this groups them and associates them with a cluster name the default label provides when deployed
+func (gc *GCloudClient) GetClusterListByLabel() map[string]*Clusters {
+	// get a list of all zones
+	zones, _ := gc.ListZone()
+
+	//create a map with cluster name as a key and struct Clusters as a value
+	exist := make(map[string]*Clusters)
+
+	// loop through all the zones
+	for _, zone := range zones {
+		// for each zone, grab all the instances
+		instances, _ := gc.ListInstances(zone)
+		// for each instance, check if it has cluster name label given by default when deployed for openshift
+		for _, instance := range instances.Items {
+			clusterName := getClusterNameFromLabels(instance.Labels)
+			// if openshift label exist, check the map to add the cluster name / instance as a key-value pair or add to an existing key-value pair in the map
+			if clusterName != "" {
+				// create a new entry in the map if cluster name isn't a key
+				if _, ok := exist[clusterName]; !ok {
+					exist[clusterName] = &Clusters{ClusterNameByLabel: clusterName, Instances: []*compute.Instance{instance}}
+					// add instance to the struct in the value of the map entry that already exists with a cluster name
+				} else {
+					exist[clusterName].Instances = append(exist[clusterName].Instances, instance)
+				}
+			}
+		}
+	}
+	linkExpiryTagToClusterStruct(exist)
+	return exist
+}
+
+// get cluster name from label, empty if no labels exist
+func getClusterNameFromLabels(label map[string]string) string {
+	for k, v := range label {
+		if v == "owned" && strings.Contains(k, labelPrefix) {
+			name := strings.TrimPrefix(k, labelPrefix)
+			return name
+		}
+	}
+	return ""
+}
+
+// get expire dates associated with the Cluster struct
+func linkExpiryTagToClusterStruct(clusters map[string]*Clusters) {
+	for _, v := range clusters {
+		if v.ExpireDate == "" {
+			for _, instance := range v.Instances {
+				if _, ok := instance.Labels["expirytag"]; ok {
+					v.ExpireDate = instance.Labels["expirytag"]
+				}
+			}
+		}
+	}
+}
+
+// return the zone with the api removed
+func GetZone(zone string) string {
+	prefix := "https://www.googleapis.com/compute/v1/projects/gc-acm-test/zones/"
+	if strings.HasPrefix(zone, prefix) {
+		return zone[len(prefix):]
+	}
+	return ""
 }

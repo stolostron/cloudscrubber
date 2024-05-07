@@ -83,17 +83,19 @@ func main() {
 		if err != nil {
 			klog.Errorf("failed to create the cloud client due to: %v\n", err)
 		}
-		zones, err := gc.ListZone()
 		if err != nil {
 			klog.Errorf("failed to get zones due to: %v\n", err)
 		}
 		project := gc.CloudConfig.ProjectID
-		for _, zone := range zones {
-			instances, _ := gc.ListInstances(zone)
-			for _, instance := range instances.Items {
-				gc.LabelInstance(project, zone, instance)
+
+		clusters := gc.GetClusterListByLabel()
+		for _, cluster := range clusters {
+			for _, instance := range cluster.Instances {
+				gc.LabelInstance(project, clouds.GetZone(instance.Zone), instance)
 			}
 		}
+	case "gcpprint":
+
 	}
 	run()
 }
@@ -104,21 +106,9 @@ func run() {
 	if err != nil {
 		klog.Errorf("failed to create the cloud client due to: %v\n", err)
 	}
-	//fmt.Println(gc.ListZone())
 
-	// zones, _ := gc.ListZone()
-
-	// for _, zone := range zones {
-	// 	//fmt.Println(gc.ListInstances(zone))
-	// 	instances, _ := gc.ListInstances(zone)
-	// 	for _, instance := range instances.Items {
-	// 		fmt.Println(instance.Name)
-	// 	}
-	// }
-
-	//instances, _ := gc.ListInstances("us-east1-b")
-	project := gc.CloudConfig.ProjectID
-	//fmt.Println(instances.Items[0].Name, project)
-	instance, _ := gc.ComputeService.Instances.Get(project, "us-east1-b", "clc-gcp-1714765954539-dhnfc-master-0").Do()
-	gc.LabelInstance(project, "us-east1-b", instance)
+	clusters := gc.GetClusterListByLabel()
+	for k, v := range clusters {
+		fmt.Println(k, v.ExpireDate)
+	}
 }
