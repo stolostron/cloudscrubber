@@ -95,20 +95,36 @@ func main() {
 			}
 		}
 	case "gcpprint":
+		gc, err := clouds.NewGoogleCloudClient(ctx)
+		if err != nil {
+			klog.Errorf("failed to create the cloud client due to: %v\n", err)
+		}
 
+		file, err := os.Create("cloudoutput/" + "gcp.txt")
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+			return
+		}
+		defer file.Close()
+
+		// Redirect standard output to the file
+		os.Stdout = file
+		clusters := gc.GetClusterListByLabel()
+
+		for _, v := range clusters {
+			if clouds.IsExpired(v.ExpireDate) {
+				zone := clouds.GetZone(v.Instances[0].Zone)
+				fmt.Println(v.ClusterNameByLabel, zone[:len(zone)-2])
+			}
+		}
 	}
-	run()
+	//run()
 }
 
 // export GCLOUD_CREDS_FILE_PATH=~/Desktop/Cloud/osServiceAccount.json
-func run() {
-	gc, err := clouds.NewGoogleCloudClient(ctx)
-	if err != nil {
-		klog.Errorf("failed to create the cloud client due to: %v\n", err)
-	}
-
-	clusters := gc.GetClusterListByLabel()
-	for k, v := range clusters {
-		fmt.Println(k, v.ExpireDate)
-	}
-}
+// func run() {
+// 	gc, err := clouds.NewGoogleCloudClient(ctx)
+// 	if err != nil {
+// 		klog.Errorf("failed to create the cloud client due to: %v\n", err)
+// 	}
+// }
