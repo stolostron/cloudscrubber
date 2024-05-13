@@ -313,7 +313,7 @@ func GenerateFiles(region string, vpcs VpcType) {
 }
 
 // update a vpc tag with new expiry date
-func (ac *AWSClient) ExtendExpiryTag(region string, clusterName string, extendedTime int) {
+func (ac *AWSClient) ExtendExpiryTagAWS(region string, clusterName string, extendedTime int) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		klog.Errorf("Error loading AWS config:")

@@ -77,7 +77,7 @@ func main() {
 		if err != nil {
 			klog.Errorf("failed to create aws client %v\n", err)
 		}
-		ac.ExtendExpiryTag(region, clusterName, days)
+		ac.ExtendExpiryTagAWS(region, clusterName, days)
 	case "gcptag":
 		gc, err := clouds.NewGoogleCloudClient(ctx)
 		if err != nil {
@@ -118,9 +118,19 @@ func main() {
 			}
 		}
 	case "gcpextend":
+		daysExtended := os.Getenv("DAYS")
+		clusterName := os.Getenv("CLUSTER")
 
+		days, _ := strconv.Atoi(daysExtended)
+
+		gc, err := clouds.NewGoogleCloudClient(ctx)
+		if err != nil {
+			klog.Errorf("failed to create the cloud client due to: %v\n", err)
+		}
+
+		gc.ExtendExpiryTagGCP(clusterName, days)
 	}
-	run()
+	//run()
 }
 
 // export GCLOUD_CREDS_FILE_PATH=~/Desktop/Cloud/osServiceAccount.json

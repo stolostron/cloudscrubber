@@ -11,6 +11,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
+	"k8s.io/klog"
 )
 
 const (
@@ -191,11 +192,15 @@ func getClusterNameFromLabels(label map[string]string) string {
 
 // get expire dates associated with the Cluster struct
 func linkExpiryTagToClusterStruct(clusters map[string]*Clusters) {
+	// loop all clusters with openshift labels
 	for _, v := range clusters {
+		// check if they have an expiry date
 		if v.ExpireDate == "" {
+			// loop all instances related to the cluster and add the expiry date to the struct
 			for _, instance := range v.Instances {
 				if _, ok := instance.Labels["expirytag"]; ok {
 					v.ExpireDate = instance.Labels["expirytag"]
+					break
 				}
 			}
 		}
@@ -209,4 +214,70 @@ func GetZone(zone string) string {
 		return zone[len(prefix):]
 	}
 	return ""
+}
+
+func (gc *GCloudClient) ExtendExpiryTagGCP(clusterName string, extendedTime int) {
+	clusters := gc.GetClusterListByLabel()
+	// loop all clusters to see cluster to be extended is found
+	for _, cluster := range clusters {
+		// if there is a match
+		if cluster.ClusterNameByLabel == clusterName {
+			// check to make sure there are valid existing expiry tags
+			if !checkForValidExpiryTags(*cluster) {
+				klog.Errorf("Error extending tags due instances not having matching expiry tags or none at all")
+			}
+			// if so, extend each instance for that cluster
+			for _, instance := range cluster.Instances {
+				gc.extendGCPTags(gc.CloudConfig.ProjectID, GetZone(instance.Zone), instance, extendedTime, cluster.ExpireDate)
+			}
+			fmt.Printf("Extended %v by %v days", clusterName, extendedTime)
+			os.Exit(0)
+		}
+	}
+	klog.Errorf("Couldn't find cluster name given")
+}
+
+// function to determine if there are valid expiry tags
+func checkForValidExpiryTags(clusters Clusters) bool {
+	for _, v := range clusters.Instances {
+		if v.Labels["expirytag"] == "" || v.Labels["expirytag"] != clusters.ExpireDate {
+			return false
+		}
+	}
+	return true
+}
+
+func (gc *GCloudClient) extendGCPTags(project string, zone string, instance *compute.Instance, extendedTime int, currentTime string) {
+	ctx := context.Background()
+
+	//fmt.Println(expireDate)
+
+	// get current labels and current fingerprint of the instance
+	currentLabels := instance.Labels
+	currentFingerprint := instance.LabelFingerprint
+
+	// create a map of labels of existing ones
+	mergedLabels := make(map[string]string)
+	for k, v := range currentLabels {
+		mergedLabels[k] = v
+	}
+
+	// set the expiry tag with extended time
+	expireDate := GetExpiryTag(extendedTime, currentTime)
+	mergedLabels["expirytag"] = expireDate
+
+	// create the request
+	request := gc.ComputeService.Instances.SetLabels(project, zone, instance.Name, &compute.InstancesSetLabelsRequest{
+		Labels:           mergedLabels,
+		LabelFingerprint: currentFingerprint,
+	})
+
+	requestWithContext := request.Context(ctx)
+
+	// Execute the API request and get the response
+	_, err := requestWithContext.Do()
+	if err != nil {
+		// Handle the error
+		log.Fatalf("Failed to set labels for instance: %v", err)
+	}
 }
