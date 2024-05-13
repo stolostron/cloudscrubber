@@ -7,11 +7,14 @@ Cloudscrubber is a tool used to track cloud resource usage. This tool runs again
 ## Features
 
 - Tag AWS vpcs for managed clusters (ROSA/OSD etc), installer provisioned installations (IPI), Kubernetes clusters (EKS)
-- Announce AWS vpcs and generate files per region with expired vpcs
+- Generate files per region with expired vpcs that were tagged with `awstag`
 - Extend AWS expiryTags for clusters still in use
 
+- Tag GCP instances that have openshift provisioned labels currently for installer provisioned installations (IPI), Kubernetes clusters (GKE)
+- Generate a list of cluster names with region listed
+- Extend GCP labels for clusters still in use
+
 ###
-- GCP (Future Feature)
 - Azure (Future Feature)
 
 
@@ -19,26 +22,39 @@ Cloudscrubber is a tool used to track cloud resource usage. This tool runs again
 
 To run this project, you will need to add the following environment variables
 
+`CLOUD_TASK` (use one of the following)
+
+- awstag
+- awsprint
+- awsextend
+- gcptag
+- gcpprint
+- gcpextend
+- azuretag
+- azureprint
+- azureextend
+
 ### For AWS
 
 `AWS_ACCESS_KEY_ID`
 
 `AWS_SECRET_ACCESS_KEY`
 
-`CLOUD_TASK` (use one of the following)
-- awstag
-- awsprint
-- awsextend
+`DAYS` (for awsextend)
 
-To use awsextend (add the following environment variables)
+`CLUSTER` (for awsextend)
 
-`DAYS`
+`REGION` (for awsextend)
 
-`CLUSTER`
+### FOR GCP
 
-`REGION`
+For GCP creds, you will need the filepath to your serviceaccount.json filepath
 
+`GCLOUD_CREDS_FILE_PATH`
 
+`DAYS` (for gcpextend)
+
+`CLUSTER` (for gcpextend)
 ## Deployment
 
 To deploy this project run in docker (sample)
