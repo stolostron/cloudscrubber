@@ -129,16 +129,37 @@ func main() {
 		}
 
 		gc.ExtendExpiryTagGCP(clusterName, days)
+	case "azuretag":
+		az, err := clouds.NewAzureClient(os.Getenv("TENANT_ID"), os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), os.Getenv("SUBSCRIPTION_ID"))
+		if err != nil {
+			klog.Errorf("failed to create the cloud client due to: %v\n", err)
+		}
+		rg, _ := az.ListResourceGroup(ctx)
+		// tag resource groups that dont have expiry tags and are not from the ignore list
+		az.TagAzureClusters(rg.Value, ctx)
 	}
-	//run()
+	run()
 }
 
 // export GCLOUD_CREDS_FILE_PATH=~/Desktop/Cloud/osServiceAccount.json
 func run() {
-	gc, err := clouds.NewGoogleCloudClient(ctx)
+	az, err := clouds.NewAzureClient(os.Getenv("TENANT_ID"), os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), os.Getenv("SUBSCRIPTION_ID"))
 	if err != nil {
 		klog.Errorf("failed to create the cloud client due to: %v\n", err)
 	}
-	clusters := gc.GetClusterListByLabel()
-	fmt.Println(clusters)
+	rg, _ := az.ListResourceGroup(ctx)
+
+	// azureclusters := clouds.GetAzureClustersByType(rg.ResourceGroupListResult.Value)
+
+	// for _, cluster := range azureclusters.IPI {
+	// 	fmt.Println(*cluster.Name)
+	// }
+	// for _, cluster := range azureclusters.AKS {
+	// 	fmt.Println(*cluster.Name)
+	// }
+	// for _, cluster := range azureclusters.OTHER {
+	// 	fmt.Println(*cluster.Name)
+	// }
+
+	az.TagAzureClusters(rg.ResourceGroupListResult.Value, ctx)
 }
