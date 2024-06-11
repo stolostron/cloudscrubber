@@ -137,29 +137,41 @@ func main() {
 		rg, _ := az.ListResourceGroup(ctx)
 		// tag resource groups that dont have expiry tags and are not from the ignore list
 		az.TagAzureClusters(rg.Value, ctx)
+	case "azureprint":
+		az, err := clouds.NewAzureClient(os.Getenv("TENANT_ID"), os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), os.Getenv("SUBSCRIPTION_ID"))
+		if err != nil {
+			klog.Errorf("failed to create the cloud client due to: %v\n", err)
+		}
+		rg, _ := az.ListResourceGroup(ctx)
+		file, err := os.Create("cloudoutput/" + "azure.txt")
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+			return
+		}
+		defer file.Close()
+
+		// Redirect standard output to the file
+		os.Stdout = file
+
+		clouds.PrintExpiredResourceGroups(rg.ResourceGroupListResult.Value)
+	case "azureextend":
+		daysExtended := os.Getenv("DAYS")
+		clusterName := os.Getenv("CLUSTER")
+
+		az, err := clouds.NewAzureClient(os.Getenv("TENANT_ID"), os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), os.Getenv("SUBSCRIPTION_ID"))
+		if err != nil {
+			klog.Errorf("failed to create the cloud client due to: %v\n", err)
+		}
+		rg, _ := az.ListResourceGroup(ctx)
+
+		days, _ := strconv.Atoi(daysExtended)
+		az.ExtendAzureCluster(clusterName, days, rg.ResourceGroupListResult.Value, ctx)
+
 	}
-	run()
+	//run()
 }
 
 // export GCLOUD_CREDS_FILE_PATH=~/Desktop/Cloud/osServiceAccount.json
-func run() {
-	az, err := clouds.NewAzureClient(os.Getenv("TENANT_ID"), os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), os.Getenv("SUBSCRIPTION_ID"))
-	if err != nil {
-		klog.Errorf("failed to create the cloud client due to: %v\n", err)
-	}
-	rg, _ := az.ListResourceGroup(ctx)
+// func run() {
 
-	// azureclusters := clouds.GetAzureClustersByType(rg.ResourceGroupListResult.Value)
-
-	// for _, cluster := range azureclusters.IPI {
-	// 	fmt.Println(*cluster.Name)
-	// }
-	// for _, cluster := range azureclusters.AKS {
-	// 	fmt.Println(*cluster.Name)
-	// }
-	// for _, cluster := range azureclusters.OTHER {
-	// 	fmt.Println(*cluster.Name)
-	// }
-
-	az.TagAzureClusters(rg.ResourceGroupListResult.Value, ctx)
-}
+// }

@@ -179,3 +179,73 @@ func GetAzureClustersByType(clusters []*armresources.ResourceGroup) AzureCluster
 func getClusterKey(resourceGroupName string) string {
 	return "kubernetes.io_cluster." + strings.TrimSuffix(resourceGroupName, "-rg")
 }
+
+func GetExpiredResourceGroups(clusters []*armresources.ResourceGroup) AzureClusters {
+	azureclusters := GetAzureClustersByType(clusters)
+
+	expiredClusters := AzureClusters{}
+
+	for _, cluster := range azureclusters.IPI {
+		if _, ok := cluster.Tags["expirytag"]; ok && IsExpired(*cluster.Tags["expirytag"]) {
+			//fmt.Println(*cluster.Name)
+			expiredClusters.IPI = append(expiredClusters.IPI, cluster)
+		}
+	}
+	for _, cluster := range azureclusters.AKS {
+		if _, ok := cluster.Tags["expirytag"]; ok && IsExpired(*cluster.Tags["expirytag"]) {
+			//fmt.Println(*cluster.Name)
+			expiredClusters.AKS = append(expiredClusters.AKS, cluster)
+		}
+	}
+	for _, cluster := range azureclusters.OTHER {
+		if _, ok := cluster.Tags["expirytag"]; ok && IsExpired(*cluster.Tags["expirytag"]) {
+			//fmt.Println(*cluster.Name)
+			expiredClusters.OTHER = append(expiredClusters.OTHER, cluster)
+		}
+	}
+
+	return expiredClusters
+}
+
+// Print all the resourcegroups that are expired using the expired tag
+func PrintExpiredResourceGroups(rg []*armresources.ResourceGroup) {
+	expiredClusters := GetExpiredResourceGroups(rg)
+	fmt.Println("IPI Clusters")
+	for _, cluster := range expiredClusters.IPI {
+		fmt.Println(*cluster.Name)
+	}
+	fmt.Println("\nAKS/Managed Clusters Clusters")
+	for _, cluster := range expiredClusters.AKS {
+		fmt.Println(*cluster.Name)
+	}
+	fmt.Println("\nOther/Non-Cluster Resourcegroups")
+	for _, cluster := range expiredClusters.OTHER {
+		fmt.Println(*cluster.Name)
+	}
+}
+
+func (az *AzureClient) ExtendAzureCluster(clusterName string, days int, clusters []*armresources.ResourceGroup, ctx context.Context) {
+	for _, cluster := range clusters {
+		if _, ok := cluster.Tags["expirytag"]; ok && *cluster.Name == clusterName {
+			az.extendAzureExpiryDate(*cluster.Name, days, ctx)
+		}
+	}
+}
+
+func (az *AzureClient) extendAzureExpiryDate(resourcegroup string, days int, ctx context.Context) {
+	rg, _ := az.AzureResourceGroupClient.Get(ctx, resourcegroup, nil)
+	tag := rg.Tags
+
+	// create expiry tag
+	currentTime := time.Now().UTC().Format("2006-01-02")
+	expireDate := GetExpiryTag(days, currentTime)
+	expiryValue := expireDate
+	tag["expirytag"] = &expiryValue
+
+	// create update patch with existing + expiry tag
+	update := armresources.ResourceGroupPatchable{
+		Tags: tag,
+	}
+	// call the update
+	az.AzureResourceGroupClient.Update(ctx, resourcegroup, update, nil)
+}
