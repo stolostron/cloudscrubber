@@ -180,6 +180,7 @@ func getClusterKey(resourceGroupName string) string {
 	return "kubernetes.io_cluster." + strings.TrimSuffix(resourceGroupName, "-rg")
 }
 
+// return a struct with resources groups that are expired
 func GetExpiredResourceGroups(clusters []*armresources.ResourceGroup) AzureClusters {
 	azureclusters := GetAzureClustersByType(clusters)
 
@@ -224,6 +225,7 @@ func PrintExpiredResourceGroups(rg []*armresources.ResourceGroup) {
 	}
 }
 
+// extend expiry date for an azure resource group
 func (az *AzureClient) ExtendAzureCluster(clusterName string, days int, clusters []*armresources.ResourceGroup, ctx context.Context) {
 	for _, cluster := range clusters {
 		if _, ok := cluster.Tags["expirytag"]; ok && *cluster.Name == clusterName {
@@ -232,6 +234,7 @@ func (az *AzureClient) ExtendAzureCluster(clusterName string, days int, clusters
 	}
 }
 
+// helper function to extend expiry tag
 func (az *AzureClient) extendAzureExpiryDate(resourcegroup string, days int, ctx context.Context) {
 	rg, _ := az.AzureResourceGroupClient.Get(ctx, resourcegroup, nil)
 	tag := rg.Tags
